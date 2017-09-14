@@ -1,56 +1,66 @@
-# **Finding Lane Lines on the Road** 
-[![Udacity - Self-Driving Car NanoDegree](https://s3.amazonaws.com/udacity-sdc/github/shield-carnd.svg)](http://www.udacity.com/drive)
+# **Finding Lane Lines on the Road**
 
-<img src="examples/laneLines_thirdPass.jpg" width="480" alt="Combined Image" />
+## Writeup Template
 
-Overview
+### You can use this file as a template for your writeup if you want to submit it as a markdown file. But feel free to use some other method and submit a pdf if you prefer.
+
 ---
 
-When we drive, we use our eyes to decide where to go.  The lines on the road that show us where the lanes are act as our constant reference for where to steer the vehicle.  Naturally, one of the first things we would like to do in developing a self-driving car is to automatically detect lane lines using an algorithm.
+**Finding Lane Lines on the Road**
 
-In this project you will detect lane lines in images using Python and OpenCV.  OpenCV means "Open-Source Computer Vision", which is a package that has many useful tools for analyzing images.  
-
-To complete the project, two files will be submitted: a file containing project code and a file containing a brief write up explaining your solution. We have included template files to be used both for the [code](https://github.com/udacity/CarND-LaneLines-P1/blob/master/P1.ipynb) and the [writeup](https://github.com/udacity/CarND-LaneLines-P1/blob/master/writeup_template.md).The code file is called P1.ipynb and the writeup template is writeup_template.md 
-
-To meet specifications in the project, take a look at the requirements in the [project rubric](https://review.udacity.com/#!/rubrics/322/view)
+The goals / steps of this project are the following:
+* Make a pipeline that finds lane lines on the road
+* Reflect on your work in a written report
 
 
-Creating a Great Writeup
----
-For this project, a great writeup should provide a detailed response to the "Reflection" section of the [project rubric](https://review.udacity.com/#!/rubrics/322/view). There are three parts to the reflection:
+[//]: # (Image References)
 
-1. Describe the pipeline
+[image1]: ./writeup_ref_images/img1-colorSelect.jpg "Color Selection"
+[image2]: ./writeup_ref_images/img2-blurGray.jpg "Blur Grayscale"
+[image3]: ./writeup_ref_images/img3-canny.jpg "Canny Edge"
+[image4]: ./writeup_ref_images/img4-ROI-hough.jpg "ROI mask and Hough transform"
+[image5]: ./writeup_ref_images/img5-final.jpg "Final Image"
 
-2. Identify any shortcomings
-
-3. Suggest possible improvements
-
-We encourage using images in your writeup to demonstrate how your pipeline works.  
-
-All that said, please be concise!  We're not looking for you to write a book here: just a brief description.
-
-You're not required to use markdown for your writeup.  If you use another method please just submit a pdf of your writeup. Here is a link to a [writeup template file](https://github.com/udacity/CarND-LaneLines-P1/blob/master/writeup_template.md). 
-
-
-The Project
 ---
 
-## If you have already installed the [CarND Term1 Starter Kit](https://github.com/udacity/CarND-Term1-Starter-Kit/blob/master/README.md) you should be good to go!   If not, you should install the starter kit to get started on this project. ##
+### Reflection
 
-**Step 1:** Set up the [CarND Term1 Starter Kit](https://classroom.udacity.com/nanodegrees/nd013/parts/fbf77062-5703-404e-b60c-95b78b2f3f9e/modules/83ec35ee-1e02-48a5-bdb7-d244bd47c2dc/lessons/8c82408b-a217-4d09-b81d-1bda4c6380ef/concepts/4f1870e0-3849-43e4-b670-12e6f2d4b7a7) if you haven't already.
+### 1. Describe your pipeline. As part of the description, explain how you modified the draw_lines() function.
 
-**Step 2:** Open the code in a Jupyter Notebook
+My pipeline consisted of the following steps.
 
-You will complete the project code in a Jupyter notebook.  If you are unfamiliar with Jupyter Notebooks, check out <A HREF="https://www.packtpub.com/books/content/basics-jupyter-notebook-and-python" target="_blank">Cyrille Rossant's Basics of Jupyter Notebook and Python</A> to get started.
+1. Apply a color selection mask to original image with high thresholds for red and green, and relatively low threshold for blue. This step was actually added at the very end to avoid detecting dark lines for the Challenge video. Since the lane lines we are trying to detect are primarily yellow and white, by filtering out objects with lower RG thresholds, we significantly reduce the scope of future steps such as canny edge detection.
+![alt text][image1]
 
-Jupyter is an Ipython notebook where you can run blocks of code and see results interactively.  All the code for this project is contained in a Jupyter notebook. To start Jupyter in your browser, use terminal to navigate to your project directory and then run the following command at the terminal prompt (be sure you've activated your Python 3 carnd-term1 environment as described in the [CarND Term1 Starter Kit](https://github.com/udacity/CarND-Term1-Starter-Kit/blob/master/README.md) installation instructions!):
+2. Convert the image to grayscale and apply GaussianBlur. A high value of 7 was chosen for the Kernel size as blurring over these many pixels helped the canny edge detector ignore the thin white horizontal chalk lines for the solidYellowLeft video.
+![alt text][image2]
 
-`> jupyter notebook`
+3. Now apply canny edge detector to the grayscale image from previous step. Here we arrived at a high threshold of 180 by sweeping, to avoid detecting lower gradient lines on the shoulder of the road.
+![alt text][image3]
 
-A browser window will appear showing the contents of the current directory.  Click on the file called "P1.ipynb".  Another browser window will appear displaying the notebook.  Follow the instructions in the notebook to complete the project.  
+4. Apply region of interest (ROI) mask to the canny edges image. The ROI mask is chosen based on position of camera in the car and height to which road can be seen into distance. The ROI mask starts at bottom of the image and goes to upto 40 pixels below the middle of image height, assuming a trapezoidal shape. The region of interest is shown using purple lines in the image below. After blackening out pixels outside the ROI, the edges image is piped through Hough transform. Hough transform is invoked with 1 pixed and 1 degree as rho and theta resolutions, for high accuracy. Minimum line length was determined to be 20 through sweeping, to avoid detecting car as lane line.
+![alt text][image4]
 
-**Step 3:** Complete the project and submit both the Ipython notebook and the project writeup
+5. By default, the draw_lines method overlays multiple lines for each detected edge onto the original image using color red and thickness 2.
+In order to draw a single line on the left and right lanes, I modified the draw_lines() function by computing the average for the slope and intercept for all the detected left lines and right lines. Lines less than 15 degrees on either side are ignored since this will be true only if we're driving perpendicular to the direction of traffic, which then becomes an error handling case. This filtering helps performance on the Challenge video. A margin equal to overlaid line thickness is chosen for all edges. The bottom y is always chosen to be bottom of image, and the top y is chosen to be the max value seen on either left or right side, for sake of symmetry, and a line is drawn connecting the y points on either side using the average slope and intercept.
+![alt text][image5]
 
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
+### 2. Identify potential shortcomings with your current pipeline
 
+
+A primary shortcoming of this pipeline stems from the fact that this uses a pure image processing approach instead of any adaptive tuning of parameters. This would make the pipeline more suited for post processing of videos and unsuitable for learning in new environments since the parameters for detection are hand tuned through experimentation here.
+
+For instance, different lighting conditions such as in the challenge video can cause the pipeline to fail.
+
+The pipeline also used a crude approach to deal with noisy lines by setting a high value for minimum line width for hough transform and through aggressive masking.
+
+Finally, this pipeline also detects lines, and so it is not very useful in roads with turns as it can't ahead well in those cases, causing the car to slow down significantly on edges.
+
+
+### 3. Suggest possible improvements to your pipeline
+
+A possible improvement would be to better handle outliers in terms of edges detected due to miscellaneous white lines by using a better statistical approach than averaging. By increasing storage for all lines detected by canny on a frame, we could potentially use median to get the middle slope and corresponding intercept instead of averaging.
+
+This would also allow us to go to a lower value for minimum line length allowing the lane detection to fit better.
+
+Another potential improvement would be to handle changes in lighting conditions better by a smarter masking approach. 
